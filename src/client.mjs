@@ -59,6 +59,24 @@ function parseUsage(u) {
   };
 }
 
+// Normalize native grounding and LiteLLM's Vertex/annotation response shapes.
+export function extractGrounding(response) {
+  const choice = response.choices?.[0];
+  const message = choice?.message;
+  const fields = message?.provider_specific_fields;
+  const annotations = message?.annotations?.filter(item => item.type === 'url_citation') || [];
+  let metadata = fields?.grounding_metadata ?? fields?.groundingMetadata ?? choice?.grounding_metadata ?? response.grounding_metadata ?? response.vertex_ai_grounding_metadata;
+  if (Array.isArray(metadata)) {
+    metadata = metadata.length === 1 ? metadata[0] : metadata.length ? {
+      groundingChunks: metadata.flatMap(item => item.groundingChunks || []),
+      providerMetadata: metadata,
+    } : null;
+  }
+  if (metadata && typeof metadata === 'object') return {...metadata, ...(annotations.length ? {annotations} : {})};
+  if (annotations.length) return {annotations, groundingChunks: annotations.map(item => ({web: {uri: item.url_citation.url, title: item.url_citation.title}}))};
+  return null;
+}
+
 /**
  * Parse SSE (Server-Sent Events) stream from a response.
  * Reads lines from the stream, extracts `data:` lines, parses JSON,
@@ -158,6 +176,9 @@ function endpointOptions(provider) {
  * @param {object} opts
  * @param {object} opts.provider  registry provider object
  * @param {object} opts.model     registry model entry
+ * @param {Array} [opts.messages] full chat history, including multimodal content
+ * @param {object} [opts.responseFormat] OpenAI response_format
+ * @param {Array} [opts.tools] provider-compatible tools (including grounding)
  * @param {string} opts.prompt
  * @param {string} [opts.system]
  * @param {number} [opts.temperature]
@@ -358,7 +379,7 @@ export async function callModel({ provider, model, prompt, system, temperature =
               resolve({
                 response: json,
                 rawUsage: json.usage ?? null,
-                grounding: message?.provider_specific_fields?.grounding_metadata ?? message?.provider_specific_fields?.groundingMetadata ?? choice?.grounding_metadata ?? json.grounding_metadata ?? null,
+                grounding: extractGrounding(json),
                 content,
                 model: json.model,
                 usage: parseUsage(json.usage),

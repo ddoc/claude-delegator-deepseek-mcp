@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:http';
-import {callModel} from '../src/client.mjs';
+import {callModel,extractGrounding} from '../src/client.mjs';
 
 test('one client preserves JSON, vision, grounding and repository conversations', async t => {
   let received;
@@ -27,4 +27,15 @@ test('one client preserves JSON, vision, grounding and repository conversations'
   response.choices[0].message.content = '{}';response.choices[0].finish_reason = 'length';
   await assert.rejects(callModel({...options,prompt:'JSON please',responseFormat:{type:'json_object'}}));
   await assert.rejects(callModel({...options,messages:[]}));
+});
+
+
+test('LiteLLM Vertex metadata and citation annotations survive normalization', () => {
+  const citation = {type:'url_citation',url_citation:{url:'https://example.org/source',title:'Evidence'}};
+  const metadata = {groundingChunks:[{web:{uri:'https://example.org/source'}}],groundingSupports:[{groundingChunkIndices:[0]}]};
+  const response = {choices:[{message:{annotations:[citation]}}],vertex_ai_grounding_metadata:[metadata]};
+  assert.deepEqual(extractGrounding(response), {...metadata,annotations:[citation]});
+  delete response.vertex_ai_grounding_metadata;
+  assert.equal(extractGrounding(response).groundingChunks[0].web.uri,'https://example.org/source');
+  assert.equal(extractGrounding({choices:[{message:{content:'uncited'}}]}),null);
 });
