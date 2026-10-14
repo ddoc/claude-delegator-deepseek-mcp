@@ -50,6 +50,10 @@ const DELEGATE_SCHEMA = {
         'Recommended for large outputs (>50K tokens) to reduce memory pressure. Default: false',
       default: false,
     },
+    json_mode: {type: 'boolean', description: 'Require a complete JSON object response'},
+    images: {type: 'array', items: {type: 'string'}, description: 'Image HTTPS or data URLs for vision'},
+    grounding: {type: 'boolean', description: 'Request Google Search grounding through a compatible provider'},
+    max_output_tokens: {type: 'integer', minimum: 1},
     files: {
       type: 'array',
       items: { type: 'string' },
@@ -173,6 +177,15 @@ export async function handleToolCall(name, args) {
         provider,
         model,
         prompt,
+        messages: args.images?.length ? [{role: 'user', content: [
+          {type: 'text', text: prompt}, ...args.images.map(url => {
+            if (typeof url !== 'string' || !/^https:\/\/|^data:image\/(png|jpeg|gif|webp);base64,/.test(url)) throw new Error('Invalid image URL');
+            return {type: 'image_url', image_url: {url}};
+          })
+        ]}] : undefined,
+        responseFormat: args.json_mode ? {type: 'json_object'} : undefined,
+        tools: args.grounding ? [{googleSearch: {}}] : undefined,
+        maxTokens: args.max_output_tokens,
         system: args.system,
         temperature: args.temperature,
         stream: args.stream,
@@ -205,6 +218,7 @@ export async function handleToolCall(name, args) {
 
       return {
         content: [{ type: 'text', text: header + result.content + footer }],
+        structuredContent: {result: args.json_mode ? JSON.parse(result.content) : result.content, usage: result.rawUsage, grounding: result.grounding, model: result.model},
       };
     }
     case 'delegate_models': {

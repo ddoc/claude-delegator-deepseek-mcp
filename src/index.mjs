@@ -4,7 +4,8 @@
 // JSON-RPC 2.0 over stdio with Content-Length framing (MCP spec compliant).
 
 import { createRequire } from 'node:module';
-import { handleToolCall, TOOLS } from './tools.mjs';
+// Optional host policy adapter, selected explicitly by the server owner.
+const { TOOLS, handleToolCall } = await import(process.env.DELEGATOR_TOOL_ADAPTER || './tools.mjs');
 import { listProviders } from './providers/registry.mjs';
 import { loadConfig } from './config.mjs';
 import { parseLines } from './framing.mjs';

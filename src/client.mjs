@@ -166,7 +166,7 @@ function endpointOptions(provider) {
  * @param {string} [opts.apiKey]     override (init wizard validates pasted keys before saving)
  * @param {number} [opts.timeoutMs]  override the default/env timeout
  */
-export async function callModel({ provider, model, prompt, system, temperature = 0.3, maxTokens, stream = false, apiKey, timeoutMs }) {
+export async function callModel({ provider, model, prompt, system, temperature = 0.3, maxTokens, stream = false, apiKey, timeoutMs, messages: conversation, responseFormat, tools }) {
   if (!provider || !model) throw new ProviderError('provider and model are required', 400);
 
   const key = apiKey || resolveApiKey(provider);
@@ -180,7 +180,7 @@ export async function callModel({ provider, model, prompt, system, temperature =
   }
 
   // --- Input parameter validation ---
-  if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+  if (conversation === undefined && (typeof prompt !== 'string' || prompt.trim().length === 0)) {
     throw new ProviderError('prompt must be a non-empty string', 400, null, provider.id);
   }
 
@@ -203,9 +203,19 @@ export async function callModel({ provider, model, prompt, system, temperature =
   }
   // --- End parameter validation ---
 
-  const messages = [];
-  if (system) messages.push({ role: 'system', content: system });
-  messages.push({ role: 'user', content: prompt });
+  if (conversation !== undefined && (!Array.isArray(conversation) || !conversation.length ||
+      conversation.some(m => !m || !['system', 'user', 'assistant', 'tool'].includes(m.role) ||
+        !(typeof m.content === 'string' || Array.isArray(m.content) || (m.role === 'assistant' && Array.isArray(m.tool_calls)))))) {
+    throw new ProviderError('messages must be a nonempty chat conversation', 400, null, provider.id);
+  }
+  if (responseFormat !== undefined && (!responseFormat || !['json_object', 'json_schema', 'text'].includes(responseFormat.type))) {
+    throw new ProviderError('Invalid response format', 400, null, provider.id);
+  }
+  if (tools !== undefined && !Array.isArray(tools)) throw new ProviderError('tools must be an array', 400, null, provider.id);
+  if (stream && responseFormat && responseFormat.type !== 'text') throw new ProviderError('Structured output requires non-streaming mode', 400, null, provider.id);
+  const messages = conversation ? [...conversation] : [];
+  if (system) messages.unshift({ role: 'system', content: system });
+  if (conversation === undefined) messages.push({ role: 'user', content: prompt });
 
   const body = {
     model: model.id,
@@ -213,6 +223,8 @@ export async function callModel({ provider, model, prompt, system, temperature =
     temperature,
     max_tokens: maxTokens || model.default_max_tokens || 8192,
     stream: stream || undefined,
+    response_format: responseFormat,
+    tools,
   };
 
   const { requester, hostname, port, path } = endpointOptions(provider);
@@ -339,7 +351,14 @@ export async function callModel({ provider, model, prompt, system, temperature =
                   content = reasoning || '(empty response)';
                 }
               }
+              if (responseFormat && responseFormat.type !== 'text') {
+                if (finish !== 'stop' || typeof message?.content !== 'string') throw new Error('Structured response incomplete');
+                JSON.parse(message.content);
+              }
               resolve({
+                response: json,
+                rawUsage: json.usage ?? null,
+                grounding: message?.provider_specific_fields?.grounding_metadata ?? message?.provider_specific_fields?.groundingMetadata ?? choice?.grounding_metadata ?? json.grounding_metadata ?? null,
                 content,
                 model: json.model,
                 usage: parseUsage(json.usage),

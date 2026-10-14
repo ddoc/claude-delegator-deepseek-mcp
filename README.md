@@ -1,3 +1,5 @@
+> This is the ddoc extension fork. See [FORK.md](FORK.md) for structured output, vision, grounding, and host-controlled repository loops.
+
 # Claude Code DeepSeek Delegator
 
 > ### 🚀 3.0 is out — now model-agnostic

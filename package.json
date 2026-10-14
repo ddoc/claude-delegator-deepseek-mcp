@@ -1,6 +1,6 @@
 {
   "name": "claude-code-deepseek-delegator",
-  "version": "3.0.1",
+  "version": "3.0.1-ddoc.1",
   "description": "MCP server that lets Claude Code delegate heavy-token tasks to DeepSeek, Kimi, GLM, Qwen, Grok, or any OpenAI-compatible model. Claude orchestrates; the delegate does the heavy lifting. Zero dependencies.",
   "type": "module",
   "bin": {
@@ -10,7 +10,8 @@
     "src/",
     "DELEGATION.md",
     ".env.example",
-    "LICENSE"
+    "LICENSE",
+    "FORK.md"
   ],
   "scripts": {
     "start": "node src/index.mjs",
@@ -51,7 +52,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fjgbue/claude-delegator-deepseek-mcp.git"
+    "url": "git+https://github.com/ddoc/claude-delegator-deepseek-mcp.git"
   },
   "license": "MIT",
   "engines": {
@@ -61,5 +62,6 @@
   "homepage": "https://github.com/fjgbue/claude-delegator-deepseek-mcp#readme",
   "bugs": {
     "url": "https://github.com/fjgbue/claude-delegator-deepseek-mcp/issues"
-  }
+  },
+  "private": true
 }
